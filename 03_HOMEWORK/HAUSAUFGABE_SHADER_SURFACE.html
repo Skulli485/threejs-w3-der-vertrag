@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deine eigene Produkt-Surface · Hausaufgabe · Lumen</title>
+<meta name="description" content="Hausaufgabe zum Three.js Deep Dive, Woche 3, Tag 2: baue deine eigene Shader-Surface für eine echte App-Situation und deploye sie live.">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='4' y='4' width='24' height='24' rx='7' fill='%236ea8fe'/><rect x='4' y='4' width='24' height='24' rx='7' fill='url(%23g)'/><defs><radialGradient id='g' cx='0.3' cy='0.2'><stop offset='0' stop-color='%235ee0b5'/><stop offset='0.6' stop-color='transparent'/></radialGradient></defs></svg>">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#07090e; --bg-2:#0a0d14; --panel:#0e121c; --panel-2:#141a28;
+  --glass:rgba(14,18,28,0.55); --glass-strong:rgba(10,13,20,0.72);
+  --line:rgba(255,255,255,0.08); --line-strong:rgba(255,255,255,0.14);
+  --inner-hi:inset 0 1px 0 rgba(255,255,255,0.06);
+  --text:#eaf0fb; --dim:#9aa7bd; --mute:#66728a;
+  --accent:#6ea8fe; --accent-2:#8be0c8; --warn:#f0b86e;
+  --grad-bottom:#172033; --grad-top:#5ee0b5;
+  --r-sm:10px; --r-md:14px; --r-lg:22px;
+  --shadow:0 1px 0 rgba(255,255,255,0.04),0 24px 60px -28px rgba(0,0,0,0.85),0 8px 24px -16px rgba(0,0,0,0.7);
+  --ease:cubic-bezier(0.32,0.72,0,1);
+  --serif:"Newsreader","Instrument Serif","Iowan Old Style",Georgia,serif;
+  --sans:"Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"Geist Mono","JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+*::selection{background:rgba(110,168,254,0.28);color:#fff}
+
+html{scroll-behavior:smooth}
+
+body{
+  margin:0;
+  font-family:var(--sans);
+  color:var(--text);
+  background:
+    radial-gradient(1100px 620px at 78% -8%, rgba(94,224,181,0.10), transparent 60%),
+    radial-gradient(980px 560px at 6% 4%, rgba(110,168,254,0.12), transparent 58%),
+    linear-gradient(180deg, var(--bg-2), var(--bg) 42%);
+  background-attachment:fixed;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  line-height:1.6;
+  letter-spacing:0.1px;
+}
+
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+code{
+  font-family:var(--mono);
+  font-size:0.86em;
+  color:var(--accent-2);
+  background:rgba(139,224,200,0.08);
+  border:1px solid rgba(139,224,200,0.14);
+  padding:0.08em 0.42em;
+  border-radius:6px;
+  letter-spacing:0;
+  white-space:normal;
+  word-break:keep-all;
+}
+
+a{color:var(--accent);text-decoration:none}
+
+/* ---------------------------------------------------------------- shell */
+.skip-link{
+  position:absolute;left:-9999px;top:0;z-index:50;
+  background:var(--panel-2);color:var(--text);
+  padding:12px 18px;border-radius:0 0 var(--r-sm) 0;
+  border:1px solid var(--line-strong);
+}
+.skip-link:focus{left:0}
+
+.wrap{
+  max-width:1080px;
+  margin:0 auto;
+  padding:0 28px;
+}
+
+.page{padding-bottom:120px}
+
+/* ---------------------------------------------------------------- hero */
+.hero{
+  position:relative;
+  margin:0 auto;
+  padding:0;
+}
+.hero-shell{
+  position:relative;
+  margin:30px auto 0;
+  max-width:1124px;
+  border-radius:var(--r-lg);
+  padding:7px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.015) 28%, transparent 60%),
+    var(--glass);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.hero-core{
+  position:relative;
+  border-radius:calc(var(--r-lg) - 7px);
+  overflow:hidden;
+  border:1px solid var(--line);
+  box-shadow:var(--inner-hi), 0 30px 80px -50px rgba(0,0,0,0.9);
+  min-height:430px;
+  display:flex;
+  isolation:isolate;
+}
+
+/* live shader canvas + CSS fallback gradient underneath */
+.hero-bg{
+  position:absolute;
+  inset:0;
+  z-index:0;
+  background:linear-gradient(180deg, var(--grad-top), #2e9d97 38%, var(--grad-bottom) 100%);
+}
+#shader-surface{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  display:block;
+  z-index:0;
+}
+/* legibility scrim over the bright gradient */
+.hero-core::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1;
+  background:
+    linear-gradient(180deg, rgba(7,9,14,0.30) 0%, rgba(7,9,14,0.10) 30%, rgba(7,9,14,0.62) 78%, rgba(7,9,14,0.86) 100%),
+    radial-gradient(120% 100% at 16% 12%, rgba(7,9,14,0.55), transparent 52%);
+  pointer-events:none;
+}
+
+.hero-content{
+  position:relative;
+  z-index:2;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:34px;
+  padding:34px 40px 38px;
+  width:100%;
+}
+
+.hero-top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{
+  display:inline-flex;align-items:center;gap:11px;
+  font-weight:600;letter-spacing:0.2px;font-size:15px;
+}
+.brand-mark{
+  width:24px;height:24px;border-radius:8px;
+  background:radial-gradient(120% 120% at 30% 20%, var(--grad-top), var(--accent) 70%);
+  box-shadow:0 0 0 1px rgba(255,255,255,0.18), 0 8px 18px -8px rgba(94,224,181,0.7);
+}
+.brand small{color:var(--mute);font-weight:500;letter-spacing:1.4px;text-transform:uppercase;font-size:10px}
+
+.hud{
+  display:inline-flex;align-items:center;gap:9px;
+  font-family:var(--mono);font-size:11.5px;letter-spacing:0.3px;
+  color:var(--dim);
+  background:var(--glass-strong);
+  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  border:1px solid var(--line-strong);
+  padding:7px 13px;border-radius:999px;
+  box-shadow:var(--inner-hi);
+}
+.led{width:7px;height:7px;border-radius:50%;background:var(--grad-top);box-shadow:0 0 10px 1px rgba(94,224,181,0.9)}
+
+.hero-headline{max-width:760px}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:9px;
+  margin:0 0 18px;
+  font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  color:var(--accent-2);
+  background:rgba(139,224,200,0.07);
+  border:1px solid rgba(139,224,200,0.20);
+  padding:7px 14px;border-radius:999px;
+}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent-2);box-shadow:0 0 8px rgba(139,224,200,0.9)}
+
+h1{
+  font-family:var(--serif);
+  font-weight:500;
+  font-size:clamp(2.5rem, 5.6vw, 4.05rem);
+  line-height:1.02;
+  letter-spacing:-0.5px;
+  margin:0 0 18px;
+  color:#fff;
+}
+h1 em{font-style:italic;color:var(--grad-top)}
+.hero-sub{
+  margin:0;
+  font-size:clamp(1rem,1.5vw,1.16rem);
+  color:var(--dim);
+  max-width:640px;
+}
+.hero-sub strong{color:var(--text);font-weight:600}
+
+.hero-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:11.5px;letter-spacing:0.2px;
+  color:var(--dim);
+  background:var(--glass-strong);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  border:1px solid var(--line);
+  padding:6px 12px;border-radius:999px;
+}
+.chip b{color:var(--text);font-weight:600}
+
+/* ---------------------------------------------------------------- generic eyebrow + section heads */
+.eyebrow-pill{
+  display:inline-flex;align-items:center;gap:9px;
+  font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  color:var(--accent);
+  background:rgba(110,168,254,0.07);
+  border:1px solid rgba(110,168,254,0.20);
+  padding:6px 13px;border-radius:999px;
+}
+.eyebrow-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+
+.section{margin-top:104px}
+.section-lead{max-width:780px}
+.section-lead h2{
+  font-family:var(--serif);
+  font-weight:500;
+  font-size:clamp(1.9rem,3.6vw,2.7rem);
+  line-height:1.08;
+  letter-spacing:-0.3px;
+  margin:18px 0 16px;
+  color:#fff;
+}
+.section-lead p{margin:0;color:var(--dim);font-size:1.05rem}
+.section-lead p strong{color:var(--text);font-weight:600}
+
+/* intro block */
+.intro{margin-top:60px}
+.intro-shell{
+  border-radius:var(--r-lg);
+  padding:7px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.06), transparent 40%), var(--glass);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow);
+}
+.intro-core{
+  border-radius:calc(var(--r-lg) - 7px);
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, var(--panel-2), var(--panel));
+  box-shadow:var(--inner-hi);
+  padding:40px 44px;
+}
+.intro-core p{margin:0 0 16px;font-size:1.12rem;color:var(--text);line-height:1.66}
+.intro-core p:last-child{margin-bottom:0}
+.intro-core p.muted{color:var(--dim);font-size:1.04rem}
+.intro-core .accent-text{color:var(--accent-2);font-weight:600}
+
+/* ---------------------------------------------------------------- double-bezel card primitive */
+.bezel{
+  border-radius:var(--r-md);
+  padding:7px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.055), transparent 46%), var(--glass);
+  border:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(255,255,255,0.03), 0 20px 44px -30px rgba(0,0,0,0.85);
+  transition:transform 0.5s var(--ease), box-shadow 0.5s var(--ease);
+  will-change:transform;
+}
+.bezel-core{
+  height:100%;
+  border-radius:calc(var(--r-md) - 7px);
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, var(--panel-2), var(--panel));
+  box-shadow:var(--inner-hi);
+  padding:24px 26px;
+}
+
+/* ---------------------------------------------------------------- step 0 */
+.step0{margin-top:36px}
+.step0 .bezel-core{display:flex;gap:22px;align-items:flex-start;padding:26px 30px}
+.step-index{
+  flex:none;
+  font-family:var(--serif);
+  font-size:2.5rem;line-height:1;
+  color:var(--accent);
+  font-variant-numeric:tabular-nums;
+  width:54px;text-align:center;
+  padding-top:2px;
+}
+.step0 .body h3{font-family:var(--serif);font-weight:500;font-size:1.5rem;margin:0 0 8px;color:#fff}
+.step0 .body p{margin:0;color:var(--dim)}
+
+/* ---------------------------------------------------------------- scenario grid */
+.scen-grid{
+  margin-top:36px;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:18px;
+}
+.scen{display:flex}
+.scen .bezel-core{display:flex;flex-direction:column;gap:0}
+.scen:hover{transform:translateY(-4px)}
+.scen:hover .scen-num{color:var(--accent-2)}
+.scen-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.scen-num{
+  font-family:var(--mono);font-size:12px;color:var(--mute);
+  font-variant-numeric:tabular-nums;letter-spacing:1px;
+  transition:color 0.45s var(--ease);
+}
+.scen-tag{
+  font-family:var(--mono);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--accent-2);
+  background:rgba(139,224,200,0.08);
+  border:1px solid rgba(139,224,200,0.18);
+  padding:4px 9px;border-radius:999px;
+}
+.scen h3{font-family:var(--serif);font-weight:500;font-size:1.4rem;margin:0 0 9px;color:#fff;line-height:1.12}
+.scen p{margin:0 0 16px;color:var(--dim);font-size:0.97rem;flex:1}
+.scen .mood{
+  margin-top:auto;
+  display:flex;align-items:center;gap:9px;
+  padding-top:13px;
+  border-top:1px solid var(--line);
+  font-size:0.9rem;color:var(--text);
+}
+.scen .mood span{color:var(--mute);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-family:var(--mono)}
+
+.note-inline{
+  margin-top:22px;
+  display:flex;align-items:center;gap:12px;
+  color:var(--dim);font-size:0.96rem;
+}
+.note-inline .bar{width:34px;height:1px;background:var(--line-strong);flex:none}
+
+/* ---------------------------------------------------------------- numbered flow (steps 2..4) */
+.flow{margin-top:40px;display:flex;flex-direction:column;gap:18px}
+.flow .bezel-core{padding:30px 32px}
+.flow-head{display:flex;align-items:baseline;gap:18px;margin-bottom:6px}
+.flow-no{
+  font-family:var(--serif);font-size:2.1rem;line-height:1;color:var(--accent);
+  font-variant-numeric:tabular-nums;flex:none;
+}
+.flow-title{font-family:var(--serif);font-weight:500;font-size:1.65rem;color:#fff;margin:0}
+.flow-kicker{
+  display:block;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;
+  color:var(--mute);margin-bottom:4px;
+}
+.flow-body{padding-left:calc(2.1rem + 18px)}
+.flow-body > p{margin:0 0 14px;color:var(--dim)}
+.flow-body > p:last-child{margin-bottom:0}
+
+.req{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:12px}
+.req li{position:relative;padding-left:26px;color:var(--text);font-size:1.0rem}
+.req li::before{
+  content:"";position:absolute;left:0;top:0.62em;
+  width:7px;height:7px;border-radius:50%;
+  background:var(--accent-2);box-shadow:0 0 0 3px rgba(139,224,200,0.12);
+}
+.req li .sub{display:block;color:var(--mute);font-size:0.88rem;margin-top:2px}
+
+/* engineer-note questions */
+.qlist{list-style:none;margin:8px 0 0;padding:0;counter-reset:q;display:flex;flex-direction:column;gap:14px}
+.qlist li{
+  position:relative;
+  padding:16px 18px 16px 58px;
+  border-radius:var(--r-sm);
+  border:1px solid var(--line);
+  background:rgba(255,255,255,0.012);
+  box-shadow:var(--inner-hi);
+  color:var(--text);
+  counter-increment:q;
+}
+.qlist li::before{
+  content:counter(q);
+  position:absolute;left:16px;top:14px;
+  width:28px;height:28px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:600;
+  color:var(--accent);
+  background:rgba(110,168,254,0.10);
+  border:1px solid rgba(110,168,254,0.22);
+  font-variant-numeric:tabular-nums;
+}
+
+/* deploy hosts */
+.hosts{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px}
+.host{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:9px 15px;border-radius:999px;
+  border:1px solid var(--line-strong);
+  background:var(--glass-strong);
+  color:var(--text);font-size:0.94rem;font-weight:500;
+}
+.host .k{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+
+/* ---------------------------------------------------------------- bonus */
+.bonus{margin-top:40px}
+.bonus .bezel{
+  background:linear-gradient(180deg, rgba(240,184,110,0.10), transparent 40%), var(--glass);
+  border-color:rgba(240,184,110,0.18);
+}
+.bonus .bezel-core{border-color:rgba(240,184,110,0.14);padding:32px 34px}
+.bonus-tag{
+  display:inline-flex;align-items:center;gap:9px;
+  font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  color:var(--warn);
+  background:rgba(240,184,110,0.08);
+  border:1px solid rgba(240,184,110,0.22);
+  padding:6px 13px;border-radius:999px;margin-bottom:16px;
+}
+.bonus-tag .dot{width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.bonus h3{font-family:var(--serif);font-weight:500;font-size:1.7rem;margin:0 0 12px;color:#fff}
+.bonus p{margin:0 0 12px;color:var(--dim)}
+.bonus p:last-child{margin-bottom:0}
+.bonus .law{color:var(--text);font-weight:600}
+
+/* ---------------------------------------------------------------- checklist */
+.check{margin-top:40px}
+.check .bezel-core{padding:14px 16px}
+.checklist{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.checklist li{
+  display:flex;align-items:flex-start;gap:14px;
+  padding:16px 18px;
+  border-radius:var(--r-sm);
+  color:var(--text);font-size:0.98rem;line-height:1.45;
+  transition:background 0.4s var(--ease);
+}
+.checklist li:hover{background:rgba(255,255,255,0.018)}
+.checklist .box{
+  flex:none;margin-top:1px;
+  width:22px;height:22px;border-radius:7px;
+  border:1px solid rgba(139,224,200,0.30);
+  background:rgba(139,224,200,0.06);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--inner-hi);
+}
+.checklist .box svg{width:13px;height:13px;stroke:var(--accent-2);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------------------------------------------------------------- abgabe closing */
+.abgabe{margin-top:46px}
+.abgabe-shell{
+  border-radius:var(--r-lg);
+  padding:7px;
+  background:
+    linear-gradient(180deg, rgba(110,168,254,0.16), rgba(139,224,200,0.05) 36%, transparent 64%),
+    var(--glass);
+  border:1px solid var(--line-strong);
+  box-shadow:var(--shadow);
+}
+.abgabe-core{
+  border-radius:calc(var(--r-lg) - 7px);
+  border:1px solid var(--line);
+  background:
+    radial-gradient(120% 140% at 88% 0%, rgba(94,224,181,0.10), transparent 52%),
+    linear-gradient(180deg, var(--panel-2), var(--panel));
+  box-shadow:var(--inner-hi);
+  padding:42px 46px;
+}
+.abgabe h2{font-family:var(--serif);font-weight:500;font-size:clamp(1.9rem,3.4vw,2.5rem);margin:16px 0 10px;color:#fff;letter-spacing:-0.3px}
+.abgabe .sub{margin:0 0 30px;color:var(--dim);font-size:1.05rem}
+.deliver{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.deliver .item{
+  border-radius:var(--r-md);
+  border:1px solid var(--line);
+  background:rgba(255,255,255,0.018);
+  box-shadow:var(--inner-hi);
+  padding:24px 22px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.deliver .n{
+  font-family:var(--mono);font-size:12px;color:var(--accent);
+  font-variant-numeric:tabular-nums;letter-spacing:1px;
+}
+.deliver .t{font-family:var(--serif);font-size:1.32rem;color:#fff;font-weight:500}
+.deliver .d{color:var(--dim);font-size:0.92rem;margin:0}
+
+/* ---------------------------------------------------------------- footer */
+.foot{
+  margin-top:90px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:26px 0 0;
+  border-top:1px solid var(--line);
+  color:var(--mute);font-size:0.86rem;
+  font-family:var(--mono);letter-spacing:0.2px;
+}
+.foot span{display:inline-flex;align-items:center;gap:9px}
+.foot .ring{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--accent-2)}
+
+/* ---------------------------------------------------------------- motion + responsive */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{transition:none !important}
+}
+
+@media (max-width:880px){
+  .scen-grid{grid-template-columns:1fr 1fr}
+  .deliver{grid-template-columns:1fr}
+  .checklist{grid-template-columns:1fr}
+  .hero-content{padding:28px 26px 30px}
+}
+@media (max-width:600px){
+  .wrap{padding:0 18px}
+  .scen-grid{grid-template-columns:1fr}
+  .flow-body{padding-left:0}
+  .step0 .bezel-core{flex-direction:column;gap:10px}
+  .step-index{text-align:left;width:auto}
+  .intro-core,.abgabe-core{padding:30px 24px}
+  h1{font-size:clamp(2.1rem,9vw,2.8rem)}
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
+
+<div class="page">
+
+  <!-- ============================ HERO ============================ -->
+  <header class="hero">
+    <div class="wrap" style="max-width:1180px;padding:0 28px">
+      <div class="hero-shell">
+        <div class="hero-core">
+          <div class="hero-bg" aria-hidden="true"></div>
+          <canvas id="shader-surface" aria-hidden="true"></canvas>
+
+          <div class="hero-content">
+            <div class="hero-top">
+              <span class="brand">
+                <span class="brand-mark" aria-hidden="true"></span>
+                Lumen <small>analytics</small>
+              </span>
+              <span class="hud" id="hud" role="status" aria-live="polite">
+                <span class="led" aria-hidden="true"></span>
+                <span id="hud-text">ShaderMaterial · uColor aktiv · uTime läuft</span>
+              </span>
+            </div>
+
+            <div class="hero-headline">
+              <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Hausaufgabe · Three.js Deep Dive · Woche 3, Tag 2</p>
+              <h1>Deine eigene <em>Produkt-Surface</em></h1>
+              <p class="hero-sub">Heute habt ihr eine Shader-Surface in den Lumen-Hero gebaut, gesteuert über <code>uColor</code> und <code>uTime</code>. Jetzt baut ihr <strong>eure eigene</strong> Oberfläche für eine echte App-Situation und deployt sie live.</p>
+            </div>
+
+            <div class="hero-foot">
+              <span class="chip"><b>zero-build</b> · eine index.html</span>
+              <span class="chip">three@<b>0.184.0</b> · Importmap</span>
+              <span class="chip">CPU → uniforms → <b>GPU</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="inhalt" class="wrap">
+
+    <!-- ============================ INTRO ============================ -->
+    <section class="intro" aria-labelledby="intro-title">
+      <div class="intro-shell">
+        <div class="intro-core">
+          <p id="intro-title">Am Ende habt ihr eine <span class="accent-text">URL, die ihr verschicken könnt</span>, und eine kurze Engineer-Note.</p>
+          <p class="muted">Das Ergebnis ist kein Shader-Bild auf einem leeren Canvas. Es ist eine Oberfläche in einem glaubwürdigen App-Kontext, mit etwas Produkt-Text drumherum, damit klar wird: der Shader dient der App.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ SCHRITT 0 ============================ -->
+    <section class="section step0" aria-labelledby="s0-title">
+      <p class="eyebrow-pill"><span class="dot" aria-hidden="true"></span>Schritt 0 · Startpunkt</p>
+      <div class="bezel" style="margin-top:22px">
+        <div class="bezel-core">
+          <span class="step-index num">00</span>
+          <div class="body">
+            <h3 id="s0-title">Nimm deinen Kurs-Stand als Vorlage</h3>
+            <p>Nehmt euren fertigen Stand aus dem Kurs (<code>04_STARTER_APP</code>) als Vorlage oder baut eine kleine eigene Seite im selben Stil. Zero-build bleibt zero-build: eine <code>index.html</code>, Three.js per Importmap von unpkg, <code>three@0.184.0</code>. Kein Vite, kein npm nötig.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ SCHRITT 1 — SCENARIOS ============================ -->
+    <section class="section" aria-labelledby="s1-title">
+      <div class="section-lead">
+        <p class="eyebrow-pill"><span class="dot" aria-hidden="true"></span>Schritt 1 · App-Situation</p>
+        <h2 id="s1-title">Wähle genau eine Situation.</h2>
+        <p>Sie entscheidet über Stimmung, Farbe und Bewegung deiner Surface. Es gibt <strong>keine bessere oder schlechtere Wahl</strong>. Nimm die, die dich reizt.</p>
+      </div>
+
+      <div class="scen-grid">
+        <article class="scen"><div class="bezel"><div class="bezel-core">
+          <div class="scen-top"><span class="scen-num num">01</span><span class="scen-tag">Auth</span></div>
+          <h3>Auth-Hintergrund</h3>
+          <p>Ein Login- oder Signup-Screen, die Surface liegt hinter dem Formular.</p>
+          <div class="mood"><span>Stimmung</span>ruhig, tief, einladend</div>
+        </div></div></article>
+
+        <article class="scen"><div class="bezel"><div class="bezel-core">
+          <div class="scen-top"><span class="scen-num num">02</span><span class="scen-tag">Loading</span></div>
+          <h3>Loading-Shimmer</h3>
+          <p>Ein Skeleton-Zustand, der lädt, statt zwanzig DOM-Knoten pulsen zu lassen.</p>
+          <div class="mood"><span>Stimmung</span>sanfte, langsame Bewegung</div>
+        </div></div></article>
+
+        <article class="scen"><div class="bezel"><div class="bezel-core">
+          <div class="scen-top"><span class="scen-num num">03</span><span class="scen-tag">Empty</span></div>
+          <h3>Empty-State</h3>
+          <p>„Noch keine Daten“, eine Fläche, die lebt, statt leer zu wirken.</p>
+          <div class="mood"><span>Stimmung</span>kühl, geduldig</div>
+        </div></div></article>
+
+        <article class="scen"><div class="bezel"><div class="bezel-core">
+          <div class="scen-top"><span class="scen-num num">04</span><span class="scen-tag">CTA</span></div>
+          <h3>CTA-Fläche</h3>
+          <p>Ein Call-to-Action-Block, der auf Hover oder Klick reagiert.</p>
+          <div class="mood"><span>Stimmung</span>warm, einladend, ein Impuls</div>
+        </div></div></article>
+
+        <article class="scen"><div class="bezel"><div class="bezel-core">
+          <div class="scen-top"><span class="scen-num num">05</span><span class="scen-tag">Onboarding</span></div>
+          <h3>Onboarding-Hero</h3>
+          <p>Ein Willkommens-Screen mit einem großen Titel.</p>
+          <div class="mood"><span>Stimmung</span>hell, freundlich, offen</div>
+        </div></div></article>
+
+        <article class="scen"><div class="bezel"><div class="bezel-core" style="display:flex;align-items:center;justify-content:center;text-align:center">
+          <div>
+            <div class="scen-num num" style="margin-bottom:12px">→</div>
+            <h3 style="font-size:1.25rem">Eine davon. Mehr nicht.</h3>
+            <p style="flex:none;margin-top:8px">Fokus schlägt Vielfalt. Die ganze Wirkung steckt im Fragment-Shader.</p>
+          </div>
+        </div></div></article>
+      </div>
+    </section>
+
+    <!-- ============================ SCHRITTE 2 / 3 / 4 — FLOW ============================ -->
+    <section class="section" aria-labelledby="build-title">
+      <div class="section-lead">
+        <p class="eyebrow-pill"><span class="dot" aria-hidden="true"></span>Schritt 2 bis 4 · Bauen, erklären, deployen</p>
+        <h2 id="build-title">Von der Plane zur Live-URL.</h2>
+        <p>Drei Schritte in Folge. Mehr Geometrie als eine Plane braucht ihr nicht.</p>
+      </div>
+
+      <div class="flow">
+
+        <!-- Schritt 2 -->
+        <div class="bezel"><div class="bezel-core">
+          <div class="flow-head">
+            <span class="flow-no num">02</span>
+            <div>
+              <span class="flow-kicker">Bau die Surface</span>
+              <h3 class="flow-title">Die Surface lebt in einem App-Kontext</h3>
+            </div>
+          </div>
+          <div class="flow-body">
+            <ul class="req">
+              <li>Die Surface lebt <strong>in</strong> einem App-Kontext: Produkt-Text, ein Titel oder ein Formular davor oder daneben, nicht nur ein nacktes Canvas.</li>
+              <li>Ein <code>varying</code> reicht <code>vUv</code> durch, der Fragment-Shader baut daraus einen Verlauf mit <code>mix</code>.</li>
+              <li>Mindestens ein eigenes <span style="white-space:nowrap">Farb-<code>uniform</code></span> (<code>uColor</code> oder ein sinnvollerer Name für eure Situation), gesteuert aus dem JavaScript.</li>
+              <li><code>uTime</code> bewegt die Fläche ruhig.<span class="sub">Eine Zahl pro Frame, der Rest passiert auf der GPU.</span></li>
+              <li>Resize-korrekt: die Surface füllt ihre Fläche auch nach Größenänderung sauber.</li>
+              <li>Sauberer Code: die uniform-Namen stimmen auf beiden Seiten Zeichen für Zeichen.</li>
+            </ul>
+          </div>
+        </div></div>
+
+        <!-- Schritt 3 -->
+        <div class="bezel"><div class="bezel-core">
+          <div class="flow-head">
+            <span class="flow-no num">03</span>
+            <div>
+              <span class="flow-kicker">Die Engineer-Note</span>
+              <h3 class="flow-title">Drei Fragen, in der README beantwortet</h3>
+            </div>
+          </div>
+          <div class="flow-body">
+            <p>Legt eine <code>README.md</code> ins Repo und beantwortet darin drei Fragen in je zwei, drei Sätzen. Das ist der Teil, der euch von jemandem unterscheidet, der Code kopiert. Schreibt es in euren eigenen Worten.</p>
+            <ul class="qlist">
+              <li>Was injiziert <code>ShaderMaterial</code> für euch, das ihr nirgends deklariert habt?</li>
+              <li>Was lässt <code>RawShaderMaterial</code> offen, also was müsstet ihr selbst schreiben?</li>
+              <li>Worüber reden Vertex- und Fragment-Shader miteinander, und was passiert, wenn ein Name nicht zusammenpasst?</li>
+            </ul>
+          </div>
+        </div></div>
+
+        <!-- Schritt 4 -->
+        <div class="bezel"><div class="bezel-core">
+          <div class="flow-head">
+            <span class="flow-no num">04</span>
+            <div>
+              <span class="flow-kicker">Deploy live</span>
+              <h3 class="flow-title">Bringt die Seite unter eine echte URL</h3>
+            </div>
+          </div>
+          <div class="flow-body">
+            <p>Wählt einen Host, pusht die Datei, aktiviert das Hosting:</p>
+            <div class="hosts">
+              <span class="host"><span class="k" aria-hidden="true"></span>GitHub Pages</span>
+              <span class="host"><span class="k" aria-hidden="true"></span>Vercel</span>
+              <span class="host"><span class="k" aria-hidden="true"></span>Netlify</span>
+            </div>
+            <p style="margin-top:16px">Testet die Live-URL einmal in einem frischen Browserfenster. Three.js lädt von unpkg, das braucht beim ersten Aufruf Netz.</p>
+          </div>
+        </div></div>
+
+      </div>
+    </section>
+
+    <!-- ============================ BONUS ============================ -->
+    <section class="section bonus" aria-labelledby="bonus-title">
+      <div class="bezel"><div class="bezel-core">
+        <p class="bonus-tag"><span class="dot" aria-hidden="true"></span>Bonus · frei, wenn ihr Lust habt</p>
+        <h3 id="bonus-title">Dieselbe Surface als RawShaderMaterial</h3>
+        <p>Baut dieselbe Surface zusätzlich einmal als <code>RawShaderMaterial</code>, mit allen selbst deklarierten Zeilen (<code>precision</code>, die Matrizen, die Attribute).</p>
+        <p>Notiert in der README einen Satz, wie viele Zeilen Code euch das gegenüber <code>ShaderMaterial</code> zusätzlich gekostet hat. <span class="law">Das ist Tesler’s Law in einer Zahl:</span> die Komplexität verschwindet nicht, sie wandert nur von der Bibliothek in euren Code.</p>
+      </div></div>
+    </section>
+
+    <!-- ============================ SELBSTCHECK ============================ -->
+    <section class="section check" aria-labelledby="check-title">
+      <div class="section-lead">
+        <p class="eyebrow-pill"><span class="dot" aria-hidden="true"></span>Vor der Abgabe</p>
+        <h2 id="check-title">Selbstcheck.</h2>
+        <p>Sieben Punkte, die alle stimmen sollten, bevor ihr die URL verschickt.</p>
+      </div>
+      <div class="bezel" style="margin-top:34px"><div class="bezel-core">
+        <ul class="checklist">
+          <li><span class="box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg></span>Die Surface liegt in einem glaubwürdigen App-Kontext, nicht auf einem leeren Canvas.</li>
+          <li><span class="box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg></span>Ein <code>varying</code> reicht <code>vUv</code> durch, der Verlauf entsteht mit <code>mix</code>.</li>
+          <li><span class="box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg></span>Ein eigenes <span style="white-space:nowrap">Farb-<code>uniform</code></span> wird aus dem JavaScript gesteuert.</li>
+          <li><span class="box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg></span><code>uTime</code> bewegt die Fläche, die CPU setzt nur eine Zahl pro Frame.</li>
+          <li><span class="box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg></span>Die Seite ist resize-korrekt und hat keine Fehler in der Konsole.</li>
+          <li><span class="box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg></span>Die <code>README.md</code> beantwortet die drei Fragen der Engineer-Note.</li>
+          <li><span class="box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg></span>Die Live-URL läuft in einem frischen Browserfenster.</li>
+        </ul>
+      </div></div>
+    </section>
+
+    <!-- ============================ ABGABE ============================ -->
+    <section class="abgabe" aria-labelledby="abgabe-title">
+      <div class="abgabe-shell">
+        <div class="abgabe-core">
+          <p class="eyebrow-pill"><span class="dot" aria-hidden="true"></span>Abgabe</p>
+          <h2 id="abgabe-title">Schickt drei Dinge.</h2>
+          <p class="sub">Die Engineer-Note steckt in der README, ein kurzer Hinweis im Chat reicht.</p>
+          <div class="deliver">
+            <div class="item">
+              <span class="n num">01</span>
+              <span class="t">Live-URL</span>
+              <p class="d">Die Seite, im Netz erreichbar, in einem frischen Fenster getestet.</p>
+            </div>
+            <div class="item">
+              <span class="n num">02</span>
+              <span class="t">Repo-Link</span>
+              <p class="d">Das Repository mit eurer index.html und der README.</p>
+            </div>
+            <div class="item">
+              <span class="n num">03</span>
+              <span class="t">Engineer-Note</span>
+              <p class="d">Die drei Antworten in der README, kurzer Hinweis im Chat.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <span><span class="ring" aria-hidden="true"></span>Hausaufgabe · Dienstag 23.06.2026 · Deine eigene Produkt-Surface</span>
+      <span>Three.js Deep Dive · Morphos GmbH</span>
+    </footer>
+
+  </main>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.184.0/build/three.module.js"}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const canvas = document.querySelector('#shader-surface');
+const hudText = document.querySelector('#hud-text');
+
+try {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const scene = new THREE.Scene();
+
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+  camera.position.z = 1;
+
+  const vertexShader = `
+    varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `;
+
+  const fragmentShader = `
+    precision mediump float;
+    uniform vec3 uColorBottom; uniform vec3 uColorTop; uniform vec3 uColor; uniform float uTime;
+    varying vec2 vUv;
+    void main(){
+      float wave = sin(vUv.x * 8.0 + uTime * 1.2) * 0.05;
+      float axis = clamp(vUv.y + wave, 0.0, 1.0);
+      vec3 color = mix(uColorBottom, uColorTop, axis);
+      color *= uColor;
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `;
+
+  const uniforms = {
+    uColorBottom: { value: new THREE.Color('#172033') },
+    uColorTop: { value: new THREE.Color('#5ee0b5') },
+    uColor: { value: new THREE.Color('#9ad7ff') },
+    uTime: { value: 0 }
+  };
+
+  const material = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms });
+  const geometry = new THREE.PlaneGeometry(2, 2);
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
+
+  const clock = new THREE.Clock();
+
+  function resize(){
+    const host = canvas.parentElement;
+    const rect = host.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    renderer.setSize(width, height, false);
+
+    const aspect = width / height;
+    if (aspect >= 1) {
+      camera.left = -1; camera.right = 1;
+      camera.top = 1 / aspect; camera.bottom = -1 / aspect;
+    } else {
+      camera.left = -aspect; camera.right = aspect;
+      camera.top = 1; camera.bottom = -1;
+    }
+    camera.updateProjectionMatrix();
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  // hide the CSS fallback once WebGL is confirmed running
+  const fallback = document.querySelector('.hero-bg');
+  if (fallback) fallback.style.opacity = '0';
+
+  renderer.setAnimationLoop(() => {
+    uniforms.uTime.value = clock.getElapsedTime();
+    renderer.render(scene, camera);
+  });
+} catch (err) {
+  // Graceful fallback: the CSS gradient (.hero-bg) stays visible, page remains fully readable.
+  if (hudText) hudText.textContent = 'Statische Surface · WebGL nicht verfügbar';
+  console.warn('WebGL nicht verfügbar, statischer Verlauf aktiv.', err);
+}
+</script>
+</body>
+</html>

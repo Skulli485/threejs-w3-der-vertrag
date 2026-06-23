@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GLSL-Playground · der ShaderMaterial-Vertrag</title>
+
+<!-- ================================================================
+     Family-B Visualizer · UNIT 7 (Di 23.06.2026) · W3 GLSL
+     EIN Konzept: der Vertrag von ShaderMaterial.
+     Eine Plane läuft mit einem echten THREE.ShaderMaterial.
+       vertex   : reicht vUv = uv durch + canonical gl_Position
+       fragment : mix(uColorA, uColorB, vUv.y), leicht mit uTime moduliert
+     Die Slider steuern uTime (+ Freeze), uColorA, uColorB live an der
+     laufenden Szene. Das Seitenpanel spiegelt die uniforms live UND
+     listet die built-ins, die three in ShaderMaterial automatisch
+     hineinschreibt (genau das, was der Student NICHT deklarieren muss).
+     three.js r184 (0.184.0) via unpkg importmap. Kein Build, doppelklicken läuft.
+================================================================= -->
+
+<!--
+  VERIFIED gegen r184 (unpkg build, Woche 23.06):
+  - THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms })  [bestätigt, three.js manual/shadertoy + docs]
+  - vertex canonical: vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); [bestätigt, dev sources]
+  - uniform-Form: { uTime: { value: 0 } }; Update via material.uniforms.uTime.value = t [VERIFIED_API_NOTES W3]
+  - injizierte built-ins (ShaderMaterial): uniforms projectionMatrix/modelViewMatrix/modelMatrix/viewMatrix/normalMatrix/cameraPosition,
+    attributes position/normal/uv, + precision-Zeile [VERIFIED_API_NOTES W3 + ShaderMaterial docs]
+  - Zeitquelle: setAnimationLoop((ts)=>...) liefert ms seit Page-Load; /1000 = Sekunden.
+    Keine Clock/Timer nötig (umgeht den Clock-vs-Timer [VERIFY-WEEK-OF]-Flag sauber).
+  - Farb-uniform als THREE.Color; Slider schreiben in dieselbe Color-Instanz (.setRGB).
+-->
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='2' width='12' height='12' rx='2' fill='%236ea8fe'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg:        #0b0e14;
+    --bg-2:      #121723;
+    --panel:     #161c2b;
+    --panel-2:   #1d2536;
+    --line:      #2a3346;
+    --line-soft: #222b3d;
+    --text:      #e6ecf6;
+    --text-dim:  #9aa7bd;
+    --text-mut:  #6b7891;
+    --accent:    #6ea8fe;  /* Blau: das, was three für dich tut */
+    --accent-2:  #8be0c8;  /* Grün: das varying / dein Code */
+    --warn:      #f0b86e;
+    --bad:       #ff6b6b;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+
+  #app {
+    display: grid;
+    grid-template-columns: 1fr 430px;
+    height: 100vh;
+  }
+  @media (max-width: 940px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; overflow: auto; }
+    html, body { overflow: auto; }
+  }
+
+  /* ---------- left: live canvas ---------- */
+  #stage {
+    position: relative;
+    min-width: 0;
+    background:
+      radial-gradient(1200px 800px at 28% 18%, #15203a 0%, transparent 60%),
+      radial-gradient(900px 700px at 82% 88%, #131a2c 0%, transparent 55%),
+      var(--bg);
+    overflow: hidden;
+  }
+  #stage canvas { display: block; }
+
+  #stage-title {
+    position: absolute; top: 18px; left: 20px; z-index: 5; pointer-events: none;
+    max-width: 480px;
+  }
+  #stage-title .tag {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--text-mut);
+  }
+  #stage-title h1 {
+    font-size: 17px; font-weight: 600; letter-spacing: .01em;
+    margin: 6px 0 0; color: var(--text);
+  }
+  #stage-title p {
+    margin: 5px 0 0; font-size: 12.5px; color: var(--text-mut); line-height: 1.5;
+  }
+
+  /* live HUD bottom-left */
+  #hud {
+    position: absolute; left: 20px; bottom: 18px; z-index: 5;
+    font-family: var(--mono); font-size: 11px; line-height: 1.8;
+    color: var(--text-dim);
+    background: rgba(11,14,20,.66); border: 1px solid var(--line-soft);
+    border-radius: 8px; padding: 8px 12px; backdrop-filter: blur(6px);
+    pointer-events: none;
+  }
+  #hud b { color: var(--accent-2); font-weight: 600; }
+
+  /* ---------- right: side panel ---------- */
+  #side {
+    background: var(--bg-2);
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+    padding: 20px 20px 28px;
+  }
+  #side h2 {
+    font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--text-mut); margin: 0 0 12px;
+  }
+  .block { margin-bottom: 22px; }
+  .block:last-child { margin-bottom: 0; }
+
+  /* controls */
+  .ctl { display: grid; grid-template-columns: 1fr; gap: 5px; margin-bottom: 14px; }
+  .ctl .lab { display: flex; justify-content: space-between; align-items: baseline; }
+  .ctl .lab label { font-size: 13px; font-weight: 500; color: var(--text); }
+  .ctl .lab .val { font-family: var(--mono); font-size: 11.5px; color: var(--accent-2); }
+  input[type=range] {
+    width: 100%; accent-color: var(--accent); height: 22px; cursor: pointer; margin: 0;
+  }
+  .colorrow { display: grid; grid-template-columns: 70px 1fr 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .colorrow .name { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); }
+  .colorrow .chan { display: grid; gap: 3px; }
+  .colorrow .chan small { font-family: var(--mono); font-size: 9.5px; color: var(--text-mut); text-align: center; }
+  .swatchrow { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+  .swatch { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); }
+  .swatchrow .arrow { color: var(--text-mut); font-family: var(--mono); font-size: 12px; }
+  .swatchrow .cap { font-size: 11.5px; color: var(--text-mut); }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+  button {
+    font-family: var(--sans); font-size: 12px; font-weight: 600;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); color: var(--text);
+    padding: 7px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--text-mut); }
+  button.active { background: var(--accent); color: #0b0e14; border-color: var(--accent); }
+
+  .hint { font-size: 11.5px; color: var(--text-mut); line-height: 1.6; margin-top: 8px; }
+  .hint code { font-family: var(--mono); color: var(--text-dim); }
+
+  /* code mirror */
+  pre {
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.65;
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 9px;
+    padding: 13px 14px; margin: 0; overflow-x: auto; color: var(--text-dim);
+  }
+  pre .c  { color: var(--text-mut); }              /* comment */
+  pre .k  { color: var(--accent); }                /* keyword / type three gives you */
+  pre .v  { color: var(--accent-2); font-weight: 600; } /* live value */
+  pre .vy { color: var(--accent-2); font-weight: 600; } /* the varying: vUv */
+  pre .s  { color: var(--warn); }                  /* string / number literal accent */
+  pre .builtin { color: var(--accent); }           /* injected built-in name */
+
+  /* injected built-ins list */
+  .inj { display: grid; gap: 6px; }
+  .inj .grp { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-mut); margin-top: 6px; }
+  .inj .grp:first-child { margin-top: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    background: rgba(110,168,254,.10); border: 1px solid rgba(110,168,254,.28);
+    border-radius: 6px; padding: 3px 8px;
+  }
+  .chip.attr { color: var(--warn); background: rgba(240,184,110,.10); border-color: rgba(240,184,110,.30); }
+  .chip.prec { color: var(--text-dim); background: rgba(154,167,189,.08); border-color: var(--line); }
+
+  .note {
+    border-left: 3px solid var(--accent-2);
+    background: var(--panel); border-radius: 0 8px 8px 0;
+    padding: 11px 14px; font-size: 12.5px; line-height: 1.6; color: var(--text-dim);
+  }
+  .note b { color: var(--text); }
+  .legend { display: flex; gap: 16px; font-size: 11px; color: var(--text-mut); margin-top: 10px; }
+  .legend i { font-style: normal; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  .dot.blue { background: var(--accent); }
+  .dot.green { background: var(--accent-2); }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ====== live canvas ====== -->
+  <div id="stage">
+    <div id="stage-title">
+      <div class="tag">Family-B · Unit 7 · ShaderMaterial</div>
+      <h1>GLSL-Playground: der Vertrag</h1>
+      <p>Eine Plane, ein echtes <code>ShaderMaterial</code>. Der vertex-Shader reicht <b style="color:var(--accent-2)">vUv = uv</b> durch, der fragment-Shader malt einen Verlauf mit <code>mix()</code>. Dreh an den Reglern: du veränderst <b>uniforms</b> der laufenden Szene.</p>
+    </div>
+    <div id="hud">
+      <span>uTime.value = <b id="hTime">0.00</b></span><br>
+      <span>draw calls: <b id="hCalls">1</b> &nbsp;·&nbsp; fps: <b id="hFps">–</b></span>
+    </div>
+  </div>
+
+  <!-- ====== side panel ====== -->
+  <div id="side">
+
+    <!-- 1) live controls = the three uniforms -->
+    <div class="block">
+      <h2>Regler → uniforms (live)</h2>
+
+      <div class="ctl">
+        <div class="lab"><label>uTime</label><span class="val" id="vTime">läuft</span></div>
+        <input type="range" id="sTime" min="0" max="12.566" step="0.001" value="0" disabled>
+      </div>
+      <div class="row" style="margin-bottom:14px;">
+        <button id="bFreeze">uTime einfrieren</button>
+        <button id="bReset">Zeit auf 0</button>
+      </div>
+      <div class="hint">
+        <code>uTime</code> läuft automatisch im Loop. Friere es ein, dann wird der Slider aktiv und du schiebst die Zeit von Hand: genau das, was die CPU jeden Frame in <code>material.uniforms.uTime.value</code> schreibt.
+      </div>
+
+      <h2 style="margin-top:20px;">uColorA / uColorB (vUv.y = 0 → 1)</h2>
+      <div class="swatchrow">
+        <span class="swatch" id="swA"></span>
+        <span class="arrow">unten ↓</span>
+        <span class="cap">mix-Achse ist vUv.y</span>
+        <span class="arrow">↑ oben</span>
+        <span class="swatch" id="swB"></span>
+      </div>
+
+      <div class="colorrow">
+        <span class="name">uColorA</span>
+        <span class="chan"><small>R</small><input type="range" id="aR" min="0" max="1" step="0.01" value="0.04"></span>
+        <span class="chan"><small>G</small><input type="range" id="aG" min="0" max="1" step="0.01" value="0.10"></span>
+        <span class="chan"><small>B</small><input type="range" id="aB" min="0" max="1" step="0.01" value="0.22"></span>
+      </div>
+      <div class="colorrow">
+        <span class="name">uColorB</span>
+        <span class="chan"><small>R</small><input type="range" id="bR" min="0" max="1" step="0.01" value="0.43"></span>
+        <span class="chan"><small>G</small><input type="range" id="bG" min="0" max="1" step="0.01" value="0.88"></span>
+        <span class="chan"><small>B</small><input type="range" id="bB" min="0" max="1" step="0.01" value="0.78"></span>
+      </div>
+    </div>
+
+    <!-- 2) live JS mirror -->
+    <div class="block">
+      <h2>Was die CPU der GPU schickt (JS)</h2>
+<pre><span class="c">// im Loop, jeden Frame, EINMAL pro draw call:</span>
+material.uniforms.uTime.value  = <span class="v" id="cTime">0.00</span>;
+material.uniforms.uColorA.value <span class="c">// THREE.Color</span>
+  .setRGB(<span class="v" id="cAR">0.04</span>, <span class="v" id="cAG">0.10</span>, <span class="v" id="cAB">0.22</span>);
+material.uniforms.uColorB.value
+  .setRGB(<span class="v" id="cBR">0.43</span>, <span class="v" id="cBG">0.88</span>, <span class="v" id="cBB">0.78</span>);</pre>
+      <div class="hint">
+        Schreib nie <code>uniforms.uTime = t</code> (ohne <code>.value</code>): das ersetzt das uniform-Objekt und die Bindung bricht still. Genau diese Stelle ist der Hyrum-Moment des Tages.
+      </div>
+    </div>
+
+    <!-- 3) the GLSL the uniforms feed -->
+    <div class="block">
+      <h2>Der Shader, den sie füttern (GLSL)</h2>
+<pre><span class="c">// VERTEX</span>
+<span class="k">varying</span> <span class="k">vec2</span> <span class="vy">vUv</span>;
+<span class="k">void</span> main() {
+  <span class="vy">vUv</span> = uv;                 <span class="c">// uv kommt von three</span>
+  gl_Position = projectionMatrix
+    * modelViewMatrix
+    * <span class="k">vec4</span>(position, <span class="s">1.0</span>); <span class="c">// alles injiziert</span>
+}
+
+<span class="c">// FRAGMENT</span>
+<span class="k">uniform</span> <span class="k">float</span> uTime;
+<span class="k">uniform</span> <span class="k">vec3</span>  uColorA;
+<span class="k">uniform</span> <span class="k">vec3</span>  uColorB;
+<span class="k">varying</span> <span class="k">vec2</span>  <span class="vy">vUv</span>;     <span class="c">// interpoliert!</span>
+<span class="k">void</span> main() {
+  <span class="k">float</span> t = <span class="vy">vUv</span>.y
+    + <span class="k">sin</span>(<span class="vy">vUv</span>.x * <span class="s">6.0</span> + uTime) * <span class="s">0.06</span>;
+  <span class="k">vec3</span> col = <span class="k">mix</span>(uColorA, uColorB, t);
+  gl_FragColor = <span class="k">vec4</span>(col, <span class="s">1.0</span>);
+}</pre>
+      <div class="legend">
+        <i><span class="dot blue"></span>von three injiziert</i>
+        <i><span class="dot green"></span>vUv: dein varying</i>
+      </div>
+    </div>
+
+    <!-- 4) the lesson: what three injects for you -->
+    <div class="block">
+      <h2>Was three in ShaderMaterial injiziert</h2>
+      <div class="inj">
+        <div class="grp">uniforms (CPU → beide Shader)</div>
+        <div class="chips">
+          <span class="chip">projectionMatrix</span>
+          <span class="chip">modelViewMatrix</span>
+          <span class="chip">modelMatrix</span>
+          <span class="chip">viewMatrix</span>
+          <span class="chip">normalMatrix</span>
+          <span class="chip">cameraPosition</span>
+        </div>
+        <div class="grp">attributes (Buffer → vertex)</div>
+        <div class="chips">
+          <span class="chip attr">position</span>
+          <span class="chip attr">normal</span>
+          <span class="chip attr">uv</span>
+        </div>
+        <div class="grp">automatisch davor</div>
+        <div class="chips">
+          <span class="chip prec">precision highp float;</span>
+        </div>
+      </div>
+      <div class="note" style="margin-top:14px;">
+        Du hast oben <b>keine</b> dieser Zeilen geschrieben. <b>ShaderMaterial</b> schreibt sie vor deinen Code. <b>RawShaderMaterial</b> schreibt nichts davor: dann deklarierst du jede Zeile selbst. Gleiches Bild, anderer Besitzer der Komplexität. Der Diff ist die Lektion.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const $ = id => document.getElementById(id);
+const stage = $('stage');
+
+// ---------- Renderer ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+// Orthographische Kamera: die Plane füllt formatfüllend das Bild,
+// damit der Verlauf das ganze Konzept ist (keine Perspektive lenkt ab).
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+camera.position.z = 2;
+
+// ---------- Das echte ShaderMaterial (das Konzept des Tages) ----------
+const vertexShader = /* glsl */`
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const fragmentShader = /* glsl */`
+  uniform float uTime;
+  uniform vec3  uColorA;
+  uniform vec3  uColorB;
+  varying vec2  vUv;
+  void main() {
+    // Mix-Achse ist vUv.y; uTime schiebt eine leichte Welle längs vUv.x.
+    float t = vUv.y + sin(vUv.x * 6.0 + uTime) * 0.06;
+    vec3 col = mix(uColorA, uColorB, t);
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
+const uniforms = {
+  uTime:   { value: 0 },
+  uColorA: { value: new THREE.Color().setRGB(0.04, 0.10, 0.22) },
+  uColorB: { value: new THREE.Color().setRGB(0.43, 0.88, 0.78) },
+};
+
+const material = new THREE.ShaderMaterial({
+  vertexShader,
+  fragmentShader,
+  uniforms,
+});
+
+// PlaneGeometry liefert uv [0..1] gratis mit -> genau das, was vUv durchreicht.
+const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+scene.add(plane);
+
+// ---------- Slider-State ----------
+let frozen = false;       // uTime eingefroren?
+let manualTime = 0;       // vom Slider gesetzte Zeit, wenn eingefroren
+
+// Farbe: wir schreiben in DIESELBE Color-Instanz (.setRGB), nie neu zuweisen.
+function readColor(prefix) {
+  return [ +$(prefix + 'R').value, +$(prefix + 'G').value, +$(prefix + 'B').value ];
+}
+function applyColors() {
+  const [aR, aG, aB] = readColor('a');
+  const [bR, bG, bB] = readColor('b');
+  uniforms.uColorA.value.setRGB(aR, aG, aB);
+  uniforms.uColorB.value.setRGB(bR, bG, bB);
+
+  // Code-Spiegel + Swatches
+  $('cAR').textContent = aR.toFixed(2); $('cAG').textContent = aG.toFixed(2); $('cAB').textContent = aB.toFixed(2);
+  $('cBR').textContent = bR.toFixed(2); $('cBG').textContent = bG.toFixed(2); $('cBB').textContent = bB.toFixed(2);
+  $('swA').style.background = `rgb(${Math.round(aR*255)},${Math.round(aG*255)},${Math.round(aB*255)})`;
+  $('swB').style.background = `rgb(${Math.round(bR*255)},${Math.round(bG*255)},${Math.round(bB*255)})`;
+}
+
+['aR','aG','aB','bR','bG','bB'].forEach(id => $(id).addEventListener('input', applyColors));
+
+$('bFreeze').addEventListener('click', () => {
+  frozen = !frozen;
+  $('bFreeze').classList.toggle('active', frozen);
+  $('bFreeze').textContent = frozen ? 'uTime läuft wieder' : 'uTime einfrieren';
+  $('sTime').disabled = !frozen;
+  $('vTime').textContent = frozen ? 'manuell' : 'läuft';
+  if (frozen) { manualTime = uniforms.uTime.value; $('sTime').value = manualTime.toFixed(3); }
+});
+
+$('bReset').addEventListener('click', () => {
+  manualTime = 0;
+  uniforms.uTime.value = 0;
+  $('sTime').value = 0;
+});
+
+$('sTime').addEventListener('input', e => {
+  manualTime = +e.target.value;
+  uniforms.uTime.value = manualTime;
+});
+
+// ---------- Resize (Ortho-Frustum dem Canvas-Seitenverhältnis anpassen) ----------
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h);
+  const aspect = w / h;
+  // Plane ist 2x2; Frustum so wählen, dass sie formatfüllend passt (cover).
+  if (aspect >= 1) { camera.left = -aspect; camera.right = aspect; camera.top = 1; camera.bottom = -1; }
+  else { camera.left = -1; camera.right = 1; camera.top = 1 / aspect; camera.bottom = -1 / aspect; }
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+
+// ---------- Loop ----------
+// setAnimationLoop liefert ts = ms seit Page-Load; /1000 = Sekunden = unsere Uhr.
+let fpsFrames = 0, fpsAcc = 0, lastTs = performance.now();
+
+renderer.setAnimationLoop((ts) => {
+  const now = ts ?? performance.now();
+  const dt = (now - lastTs) / 1000;
+  lastTs = now;
+
+  // Die EINE Zeile, um die sich heute alles dreht: CPU schreibt uTime in das uniform.
+  if (!frozen) uniforms.uTime.value = now / 1000;
+
+  renderer.render(scene, camera);
+
+  // HUD + Code-Spiegel der Zeit
+  const tv = uniforms.uTime.value;
+  $('hTime').textContent = tv.toFixed(2);
+  $('cTime').textContent = tv.toFixed(2);
+  $('hCalls').textContent = renderer.info.render.calls;
+
+  fpsFrames++; fpsAcc += dt;
+  if (fpsAcc >= 0.5) { $('hFps').textContent = Math.round(fpsFrames / fpsAcc); fpsFrames = 0; fpsAcc = 0; }
+});
+
+// ---------- Init ----------
+applyColors();
+</script>
+</body>
+</html>

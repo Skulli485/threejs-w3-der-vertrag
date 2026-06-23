@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lumen · Produkt-Analytics</title>
+  <meta name="description" content="Lumen ist eine Produkt-Analytics- und Deployment-Plattform. Die Hero-Flaeche laeuft als Three.js-Shader-Surface auf der GPU.">
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='4' y='4' width='24' height='24' rx='7' fill='%236ea8fe'/><rect x='4' y='4' width='24' height='24' rx='7' fill='url(%23g)'/><defs><radialGradient id='g' cx='0.3' cy='0.2'><stop offset='0' stop-color='%235ee0b5'/><stop offset='0.6' stop-color='transparent'/></radialGradient></defs></svg>">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Zum Inhalt springen</a>
+
+  <div class="app-shell">
+
+    <!-- ============================ Topbar ============================ -->
+    <header class="topbar">
+      <span class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        Lumen <small>analytics</small>
+      </span>
+      <nav class="nav-links" aria-label="Bereiche">
+        <a href="#overview" aria-current="page">Overview</a>
+        <a href="#deployments">Deployments</a>
+        <a href="#signals">Signals</a>
+        <a href="#queue">Queue</a>
+      </nav>
+      <span class="team-chip">
+        <span class="avatar" aria-hidden="true"></span>
+        Morphos Workspace
+      </span>
+    </header>
+
+    <main id="main">
+
+      <!-- ============================ Hero / Shader-Surface ============================ -->
+      <section id="overview" class="hero" aria-labelledby="hero-title">
+        <div class="hero-inner">
+          <canvas id="shader-surface" aria-hidden="true"></canvas>
+
+          <div class="shader-hud" id="shader-hud" role="status" aria-live="polite">
+            <span class="led" aria-hidden="true"></span>
+            <span id="hud-text">ShaderMaterial bereit</span>
+          </div>
+
+          <div class="hero-content">
+            <div class="hero-copy">
+              <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>Release Health · 23.06.2026</p>
+              <h1 id="hero-title">Eine Oberflaeche, die <em>Status</em> traegt.</h1>
+              <p class="lede">Der Hero bleibt eine Webapp. Die sichtbare Flaeche ist eine Shader-Surface: die GPU rechnet jeden Pixel parallel, das JavaScript schickt nur ein paar Uniform-Werte. Status, Stimmung und Bewegung kommen aus dem Vertrag zwischen CPU und GPU.</p>
+              <div class="actions">
+                <button class="btn" id="deploy-button" type="button">
+                  Release pruefen
+                  <span class="tip" aria-hidden="true">&#8599;</span>
+                </button>
+                <label class="tint-control" for="surface-tint">
+                  uColor
+                  <input id="surface-tint" type="color" value="#9ad7ff" aria-label="Produktfarbe der Shader-Surface">
+                </label>
+              </div>
+            </div>
+
+            <div class="hero-metrics" aria-label="Produktmetriken">
+              <div class="metric">
+                <div class="metric-core">
+                  <div class="label"><span>Deploy Score</span><span class="delta">+4,2</span></div>
+                  <div class="value">94</div>
+                </div>
+              </div>
+              <div class="metric">
+                <div class="metric-core">
+                  <div class="label"><span>LCP p75</span><span class="delta">stabil</span></div>
+                  <div class="value">1,8s</div>
+                </div>
+              </div>
+              <div class="metric">
+                <div class="metric-core">
+                  <div class="label"><span>Surface-Last</span><span class="delta">GPU</span></div>
+                  <div class="value">0,3<span style="font-size:15px;color:var(--mute)"> ms CPU</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ Dashboard ============================ -->
+      <div class="section-head" id="deployments">
+        <h2>Die App steuert Werte, nicht Pixel.</h2>
+        <span class="hint">cpu &rarr; uniforms &rarr; gpu</span>
+      </div>
+
+      <section class="grid" aria-label="Pipeline und Signale">
+        <article class="card span-2">
+          <div class="card-core">
+            <p class="kicker">Pipeline</p>
+            <h3>Vom Produktzustand zur Flaeche</h3>
+            <p>JavaScript besitzt den Zustand: welches Team, welcher Release, welche Stimmung. Die GPU besitzt die Pixelarbeit. Dazwischen liegt ein schmaler Kanal aus <code>uniform</code>-Werten.</p>
+            <div class="pipeline">
+              <div class="pipe"><span>CPU</span><strong>Produktstatus</strong></div>
+              <div class="pipe is-uniform"><span>uniforms</span><strong>uColor, uTime</strong></div>
+              <div class="pipe"><span>GPU</span><strong>Surface-Pixel</strong></div>
+            </div>
+            <div class="spark" aria-hidden="true">
+              <i style="height:38%"></i><i style="height:52%"></i><i style="height:44%"></i><i style="height:66%"></i>
+              <i style="height:58%"></i><i style="height:78%"></i><i style="height:70%"></i><i style="height:90%"></i>
+              <i style="height:64%"></i><i style="height:82%"></i><i style="height:74%"></i><i style="height:96%"></i>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-core">
+            <p class="kicker">Core Web Vitals</p>
+            <h3>Ruhiger Main-Thread</h3>
+            <p>Die grosse bewegte Flaeche liegt in einem Fragment-Shader, nicht in vielen einzelnen DOM-Updates. Das Layout bleibt still, die Animation laeuft auf der GPU.</p>
+          </div>
+        </article>
+      </section>
+
+      <div class="section-head" id="signals">
+        <h2>Namen sind der Vertrag.</h2>
+        <span class="hint">js &harr; glsl</span>
+      </div>
+
+      <section class="grid" aria-label="Vertrag und Kanaele">
+        <article class="card">
+          <div class="card-core">
+            <p class="kicker">Contract Check</p>
+            <h3>Ein Buchstabe genuegt</h3>
+            <p>Heisst es im JavaScript <code>uColor</code> und im GLSL <code>uColour</code>, gibt es keine Fehlermeldung. Es gibt nur ein falsches Bild. Der Vertrag wird nicht erzwungen.</p>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-core">
+            <p class="kicker">varying</p>
+            <h3>Drei Ecken, eine Flaeche</h3>
+            <p>Der Vertex-Shader setzt <code>vUv</code> an den Ecken, die GPU interpoliert ueber die Flaeche, der Fragment-Shader liest pro Pixel. So wird aus drei Werten ein weicher Verlauf.</p>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-core">
+            <p class="kicker">uniform</p>
+            <h3>Ein Wert pro Frame</h3>
+            <p><code>uTime</code> ist eine einzige Zahl, die die CPU pro Bild setzt. Millionen Pixel lesen sie gleichzeitig und bewegen die Flaeche. Die teure Arbeit bleibt auf der GPU.</p>
+          </div>
+        </article>
+      </section>
+
+      <!-- ============================ Empty State ============================ -->
+      <div class="section-head" id="queue">
+        <h2>Release Queue</h2>
+        <span class="hint">leer, aber lebendig</span>
+      </div>
+
+      <section class="empty" aria-label="Leere Release-Warteschlange">
+        <div class="empty-core">
+          <div>
+            <h3>Keine offenen Deployments.</h3>
+            <p>Diese Flaeche ist euer Projekt: ein Empty-State, der ueber <code>vUv</code>, <code>uColor</code> und <code>uTime</code> ruhig arbeitet, statt leer zu wirken.</p>
+          </div>
+          <button class="btn" type="button" id="queue-button">
+            Report anlegen
+            <span class="tip" aria-hidden="true">&#8599;</span>
+          </button>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <span>Lumen Analytics &middot; Morphos Workspace</span>
+        <span>three@0.184.0 &middot; zero-build &middot; GPU-Surface</span>
+      </footer>
+
+    </main>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
