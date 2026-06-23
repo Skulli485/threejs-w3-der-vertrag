@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lumen · Produkt-Analytics</title>
-  <meta name="description" content="Lumen ist eine Produkt-Analytics- und Deployment-Plattform. Die Hero-Flaeche laeuft als Three.js-Shader-Surface auf der GPU.">
+  <title>Lumen · Login</title>
+  <meta name="description" content="Lumen ist eine Produkt-Analytics-Plattform. Der Login-Hintergrund laeuft als Three.js-Shader-Surface auf der GPU.">
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='4' y='4' width='24' height='24' rx='7' fill='%236ea8fe'/><rect x='4' y='4' width='24' height='24' rx='7' fill='url(%23g)'/><defs><radialGradient id='g' cx='0.3' cy='0.2'><stop offset='0' stop-color='%235ee0b5'/><stop offset='0.6' stop-color='transparent'/></radialGradient></defs></svg>">
 
@@ -51,12 +51,12 @@
 
           <div class="hero-content">
             <div class="hero-copy">
-              <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>Release Health · 23.06.2026</p>
-              <h1 id="hero-title">Eine Oberflaeche, die <em>Status</em> traegt.</h1>
-              <p class="lede">Der Hero bleibt eine Webapp. Die sichtbare Flaeche ist eine Shader-Surface: die GPU rechnet jeden Pixel parallel, das JavaScript schickt nur ein paar Uniform-Werte. Status, Stimmung und Bewegung kommen aus dem Vertrag zwischen CPU und GPU.</p>
+              <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>Sicher anmelden · 23.06.2026</p>
+              <h1 id="hero-title">Willkommen zurueck bei <em>Lumen</em>.</h1>
+              <p class="lede">Der Auth-Hintergrund bleibt ruhig und tief, damit das Formular im Fokus bleibt. Die sichtbare Flaeche ist eine Shader-Surface: JavaScript sendet nur <code>uColor</code> und <code>uTime</code>, die GPU rechnet die weiche Bewegung pro Pixel.</p>
               <div class="actions">
                 <button class="btn" id="deploy-button" type="button">
-                  Release pruefen
+                  Anmeldung pruefen
                   <span class="tip" aria-hidden="true">&#8599;</span>
                 </button>
                 <label class="tint-control" for="surface-tint">
@@ -66,26 +66,30 @@
               </div>
             </div>
 
-            <div class="hero-metrics" aria-label="Produktmetriken">
-              <div class="metric">
-                <div class="metric-core">
-                  <div class="label"><span>Deploy Score</span><span class="delta">+4,2</span></div>
-                  <div class="value">94</div>
-                </div>
+            <form class="auth-panel" aria-label="Login Formular">
+              <div class="auth-head">
+                <p class="kicker">Workspace Login</p>
+                <h2>Morphos Workspace</h2>
+                <p>Melde dich an, um deine Produkt-Signale zu sehen.</p>
               </div>
-              <div class="metric">
-                <div class="metric-core">
-                  <div class="label"><span>LCP p75</span><span class="delta">stabil</span></div>
-                  <div class="value">1,8s</div>
-                </div>
-              </div>
-              <div class="metric">
-                <div class="metric-core">
-                  <div class="label"><span>Surface-Last</span><span class="delta">GPU</span></div>
-                  <div class="value">0,3<span style="font-size:15px;color:var(--mute)"> ms CPU</span></div>
-                </div>
-              </div>
-            </div>
+
+              <label class="field">
+                E-Mail
+                <input type="email" value="team@morphos.local" autocomplete="email">
+              </label>
+
+              <label class="field">
+                Passwort
+                <input type="password" value="shadervertrag" autocomplete="current-password">
+              </label>
+
+              <button class="btn auth-submit" type="button">
+                Einloggen
+                <span class="tip" aria-hidden="true">&#8599;</span>
+              </button>
+
+              <p class="auth-note">ShaderMaterial · Auth-Hintergrund · <code>uTime</code> aktiv</p>
+            </form>
           </div>
         </div>
       </section>
@@ -153,20 +157,20 @@
         </article>
       </section>
 
-      <!-- ============================ Empty State ============================ -->
+      <!-- ============================ Session Queue ============================ -->
       <div class="section-head" id="queue">
-        <h2>Release Queue</h2>
-        <span class="hint">leer, aber lebendig</span>
+        <h2>Login Queue</h2>
+        <span class="hint">auth-kontext</span>
       </div>
 
-      <section class="empty" aria-label="Leere Release-Warteschlange">
+      <section class="empty" aria-label="Login-Hinweis">
         <div class="empty-core">
           <div>
-            <h3>Keine offenen Deployments.</h3>
-            <p>Diese Flaeche ist euer Projekt: ein Empty-State, der ueber <code>vUv</code>, <code>uColor</code> und <code>uTime</code> ruhig arbeitet, statt leer zu wirken.</p>
+            <h3>Keine aktiven Sitzungen.</h3>
+            <p>Die Auth-Surface bleibt hinter dem Formular ruhig in Bewegung. <code>vUv</code>, <code>uColor</code> und <code>uTime</code> tragen Stimmung, ohne den Login zu ueberladen.</p>
           </div>
           <button class="btn" type="button" id="queue-button">
-            Report anlegen
+            Sitzung vorbereiten
             <span class="tip" aria-hidden="true">&#8599;</span>
           </button>
         </div>

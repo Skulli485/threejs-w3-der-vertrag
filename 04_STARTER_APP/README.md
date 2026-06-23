@@ -1,19 +1,37 @@
-# Lumen · Starter-App
+# Lumen Auth-Surface
 
-Eine kleine, echte SaaS-Oberflaeche. Der Hero ist eine Three.js-Shader-Surface auf der GPU.
-Kein Build, kein npm. Three.js r184 kommt ueber eine Importmap von unpkg, der Browser laedt es direkt.
+Eine kleine zero-build Webapp fuer eine glaubwuerdige Produkt-Situation: Lumen Analytics zeigt einen Login-Screen. Die grosse Auth-Hintergrundflaeche ist eine Three.js-Shader-Surface, die ueber `uColor` und `uTime` aus JavaScript gesteuert wird.
+
+## App-Situation
+
+Ich habe die Surface als Auth-Hintergrund in einer Analytics-App gebaut. Die Flaeche liegt hinter einem Login-Formular und bleibt ruhig, tief und einladend. Sie ist kein einzelnes Shader-Bild, sondern dient dem App-Screen: Produkttext, Formular, Button und Color-Input liegen direkt im Kontext der Surface.
+
+## Was die Surface macht
+
+Der Vertex-Shader reicht `vUv` als `varying` an den Fragment-Shader weiter. Der Fragment-Shader nutzt `mix(uColorBottom, uColorTop, axis)` fuer den Verlauf, verschiebt die Achse mit `uTime` und multipliziert das Ergebnis mit der live steuerbaren Produktfarbe `uColor`.
+
+Die CPU setzt nur Werte: die Farbe bei Aenderung des Inputs und einmal pro Frame die Zeit. Die Pixelarbeit passiert im Fragment-Shader auf der GPU.
+
+## Engineer-Note
+
+### 1. Was injiziert `ShaderMaterial`?
+
+`ShaderMaterial` gibt mir in Three.js schon typische Shader-Bausteine mit, zum Beispiel `projectionMatrix`, `modelViewMatrix`, `position` und `uv`. Ich kann diese Namen im Shader benutzen, ohne sie selbst als Attribute oder Uniforms zu deklarieren. Dadurch bleibt der eigene Shader kuerzer und ich kann mich auf die Surface-Logik konzentrieren.
+
+### 2. Was laesst `RawShaderMaterial` offen?
+
+Bei `RawShaderMaterial` muesste ich diese Grundlagen selbst schreiben. Dazu gehoeren unter anderem `precision`, Attribute wie `position` und `uv` sowie die Matrix-Uniforms, die aus dem 3D-Modell eine Position auf dem Bildschirm machen. Die Bibliothek nimmt mir dann weniger ab, also wandert mehr Verantwortung in meinen Shader-Code.
+
+### 3. Worueber reden Vertex- und Fragment-Shader miteinander?
+
+Vertex- und Fragment-Shader reden ueber `varying`-Werte miteinander. In dieser App setzt der Vertex-Shader `vUv`, die GPU interpoliert diesen Wert ueber die Flaeche, und der Fragment-Shader liest ihn pro Pixel. Wenn ein Name nicht exakt zusammenpasst, kommt der Wert nicht richtig an: der Shader kompiliert entweder nicht oder das Bild sieht falsch aus.
 
 ## Starten
 
-Du brauchst einen kleinen lokalen Server (eine Shader-Datei laedt nicht sauber per Doppelklick).
-Im Ordner `04_STARTER_APP`:
+Im Ordner `04_STARTER_APP` einen lokalen Server starten:
 
 ```bash
-# Variante A (Python)
 python -m http.server 5173
-
-# Variante B (Node)
-npx serve .
 ```
 
 Dann im Browser oeffnen:
@@ -22,27 +40,4 @@ Dann im Browser oeffnen:
 http://localhost:5173
 ```
 
-Beim ersten Start brauchst du Internet, damit Three.js von unpkg geladen wird. Danach liegt es im Cache.
-
-## Was schon laeuft
-
-Die Hero-Surface zeigt sofort einen ruhigen vertikalen Verlauf. Das ist die Basis:
-ein echtes `ShaderMaterial`, ein `vUv`-varying, ein `mix()` zwischen zwei Farben.
-
-## Was du heute einbaust
-
-Fuenf markierte Stellen (`GAP 1` bis `GAP 5`) im Code. Sie machen aus der ruhigen Flaeche
-eine Live-Produkt-Surface:
-
-- die Produktfarbe `uColor`, die du oben im Hero per Color-Input steuerst,
-- die Zeit `uTime`, die die Surface ruhig in Bewegung bringt.
-
-Die genauen Schritte stehen im Brief (`02_IN_CLASS_PROJECT/`), nicht im Code. Der Code bleibt sauber.
-
-## Dateien
-
-| Datei | Inhalt |
-|---|---|
-| `index.html` | Die Lumen-Oberflaeche (Topbar, Hero mit Canvas, Dashboard, Empty-State) |
-| `styles.css` | Das Design-System (Farben, Typo, Tiefe) |
-| `app.js` | Die Szene, das `ShaderMaterial` und die fuenf GAP-Stellen |
+Beim ersten Start braucht die Seite Internet, weil Three.js ueber unpkg geladen wird.
